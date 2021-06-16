@@ -10,6 +10,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import java.lang.reflect.Array;
+import java.util.Arrays;
+
 @Component
 public class ChargeCreditWorker implements CommandLineRunner {
 
@@ -28,11 +31,23 @@ public class ChargeCreditWorker implements CommandLineRunner {
 
     private void handleTask(ExternalTask externalTask, ExternalTaskService externalTaskService) {
         //Here is where I do my service logic...
-        LOG.info("Running external task {} for topic {}", externalTask.getId(), externalTask.getTopicName());
-        VariableMap variableMap = Variables.createVariables();
-        variableMap.put("clientCredit", 100);
+        try {
+            LOG.info("Running external task {} for topic {}", externalTask.getId(), externalTask.getTopicName());
+            VariableMap variableMap = Variables.createVariables();
+            variableMap.put("clientCredit", 100);
 
-        externalTaskService.complete(externalTask, variableMap);
-        LOG.info("External task {} for topic {} completed", externalTask.getId(), externalTask.getTopicName());
+            externalTaskService.complete(externalTask, variableMap);
+            LOG.info("External task {} for topic {} completed", externalTask.getId(), externalTask.getTopicName());
+
+        } catch (Exception ex) {
+            Integer retries = externalTask.getRetries();
+            if (retries==null) {
+                retries = 3;
+            } else {
+                retries -= 1;
+            }
+            LOG.error("External task {} for topic {} failed", externalTask.getId(), externalTask.getTopicName());
+            externalTaskService.handleFailure(externalTask, ex.getMessage(), Arrays.toString(ex.getStackTrace()), retries, 1000);
+        }
     }
 }

@@ -9,35 +9,24 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 @Component
-public class CreditCardChargingWorker implements CommandLineRunner {
+public class RefundCreditWorker implements CommandLineRunner {
 
     private final ExternalTaskClient externalTaskClient;
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
-    public CreditCardChargingWorker(ExternalTaskClient externalTaskClient) {
+    public RefundCreditWorker(ExternalTaskClient externalTaskClient) {
         this.externalTaskClient = externalTaskClient;
     }
 
     @Override
     public void run(String... args) throws Exception {
-        externalTaskClient.subscribe("credit-card-charging")
+        externalTaskClient.subscribe("refund-credit")
                 .lockDuration(10000L).handler(this::handleTask).open();
     }
 
     private void handleTask(ExternalTask externalTask, ExternalTaskService externalTaskService) {
-
-        Boolean error = (Boolean) externalTask.getVariable("error");
-
-        //Here is where I do my service logic...
         LOG.info("Running external task {} for topic {}", externalTask.getId(), externalTask.getTopicName());
-
-
-        if(error != null && error) {
-            LOG.info("Error in task {} for topic {}", externalTask.getId(), externalTask.getTopicName());
-            externalTaskService.handleBpmnError(externalTask, "error", "Charged Failed");
-        } else {
-            externalTaskService.complete(externalTask);
-            LOG.info("External task {} for topic {} completed", externalTask.getId(), externalTask.getTopicName());
-        }
+        externalTaskService.complete(externalTask);
+        LOG.info("External task {} for topic {} completed", externalTask.getId(), externalTask.getTopicName());
     }
 }

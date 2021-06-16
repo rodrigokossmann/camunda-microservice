@@ -1,5 +1,7 @@
 package com.course.camunda.microservicetraining.workers;
 
+import com.camunda.consulting.client.api.MessageApi;
+import com.camunda.consulting.client.model.CorrelationMessageDto;
 import org.camunda.bpm.client.ExternalTaskClient;
 import org.camunda.bpm.client.task.ExternalTask;
 import org.camunda.bpm.client.task.ExternalTaskService;
@@ -9,35 +11,32 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 @Component
-public class CreditCardChargingWorker implements CommandLineRunner {
+public class PaymentFailedWorker implements CommandLineRunner {
 
+    private final MessageApi messageApi;
     private final ExternalTaskClient externalTaskClient;
     private final Logger LOG = LoggerFactory.getLogger(getClass());
 
-    public CreditCardChargingWorker(ExternalTaskClient externalTaskClient) {
+    public PaymentFailedWorker(MessageApi messageApi, ExternalTaskClient externalTaskClient) {
+        this.messageApi = messageApi;
         this.externalTaskClient = externalTaskClient;
     }
 
     @Override
     public void run(String... args) throws Exception {
-        externalTaskClient.subscribe("credit-card-charging")
+        externalTaskClient.subscribe("payment-done")
                 .lockDuration(10000L).handler(this::handleTask).open();
     }
 
     private void handleTask(ExternalTask externalTask, ExternalTaskService externalTaskService) {
-
-        Boolean error = (Boolean) externalTask.getVariable("error");
-
-        //Here is where I do my service logic...
         LOG.info("Running external task {} for topic {}", externalTask.getId(), externalTask.getTopicName());
 
+        CorrelationMessageDto correlationMessageDto = new CorrelationMessageDto().
+                messageName("PaymentCompleted").businessKey(externalTask.getBusinessKey());
 
-        if(error != null && error) {
-            LOG.info("Error in task {} for topic {}", externalTask.getId(), externalTask.getTopicName());
-            externalTaskService.handleBpmnError(externalTask, "error", "Charged Failed");
-        } else {
-            externalTaskService.complete(externalTask);
-            LOG.info("External task {} for topic {} completed", externalTask.getId(), externalTask.getTopicName());
-        }
+        messageApi.deliverMessage(correlationMessageDto);
+
+        externalTaskService.complete(externalTask);
+        LOG.info("External task {} for topic {} completed", externalTask.getId(), externalTask.getTopicName());
     }
 }
